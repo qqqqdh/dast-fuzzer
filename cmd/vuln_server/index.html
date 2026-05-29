@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Secret - Admin Portal</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Consolas', 'Courier New', monospace;
+            margin: 0; padding: 40px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .container {
+            width: 100%; max-width: 600px;
+            background: #1e293b; padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h1 { color: #38bdf8; text-align: center; border-bottom: 2px dashed #334155; padding-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #94a3b8; }
+        input[type="text"] {
+            width: 100%; padding: 12px; box-sizing: border-box;
+            background: #0f172a; border: 1px solid #475569;
+            color: #10b981; border-radius: 6px; font-size: 16px;
+        }
+        button {
+            width: 100%; padding: 12px; background: #38bdf8;
+            color: #0f172a; font-weight: bold; font-size: 16px;
+            border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;
+        }
+        button:hover { background: #0ea5e9; }
+        .result-box {
+            margin-top: 15px; padding: 15px; background: #000;
+            border: 1px solid #ef4444; color: #ef4444;
+            border-radius: 6px; min-height: 50px; word-wrap: break-word;
+        }
+        .success { color: #10b981; border-color: #10b981; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>💀 SYSTEM_ADMIN_PORTAL 💀</h1>
+        
+        <div class="form-group">
+            <label>▶ [Target 1] User Search (GET /api/v1/user)</label>
+            <input type="text" id="userId" placeholder="Enter User ID (e.g. 1)">
+            <button style="margin-top: 10px;" onclick="searchUser()">Search Database</button>
+            <div id="getUserResult" class="result-box">Waiting for input...</div>
+        </div>
+
+        <hr style="border: 1px dashed #334155; margin: 30px 0;">
+
+        <div class="form-group">
+            <label>▶ [Target 2] System Broadcast (POST /api/v1/board)</label>
+            <input type="text" id="boardContent" placeholder="Enter Broadcast Message">
+            <button style="margin-top: 10px; background: #fbbf24;" onclick="postBoard()">Send Broadcast</button>
+            <div id="postBoardResult" class="result-box">Waiting for input...</div>
+        </div>
+    </div>
+
+    <script>
+        // 타겟 1 API 호출
+        async function searchUser() {
+            const id = document.getElementById('userId').value;
+            const resBox = document.getElementById('getUserResult');
+            try {
+                const res = await fetch('/api/v1/user?id=' + encodeURIComponent(id));
+                const text = await res.text();
+                resBox.className = res.ok ? "result-box success" : "result-box";
+                resBox.innerText = `[Status: ${res.status}]\n${text}`;
+            } catch (e) { resBox.innerText = e; }
+        }
+
+        // 타겟 2 API 호출
+        async function postBoard() {
+            const content = document.getElementById('boardContent').value;
+            const resBox = document.getElementById('postBoardResult');
+            try {
+                const res = await fetch('/api/v1/board', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: "Alert", content: content })
+                });
+                const text = await res.text();
+                resBox.className = res.ok ? "result-box success" : "result-box";
+                resBox.innerText = `[Status: ${res.status}]\n${text}`;
+            } catch (e) { resBox.innerText = e; }
+        }
+    </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"dast-fuzzer/internal/client"
@@ -24,7 +25,7 @@ type FuzzResult struct {
 	Body        string
 }
 
-func worker(ctx context.Context, fc *client.FuzzClient, jobs <-chan FuzzJob, results chan<- FuzzResult, wg *sync.WaitGroup) {
+func worker(ctx context.Context, fc *client.FuzzClient, jobs <-chan FuzzJob, results chan<- FuzzResult, wg *sync.WaitGroup, header string) {
 	defer wg.Done()
 
 	for job := range jobs {
@@ -43,6 +44,13 @@ func worker(ctx context.Context, fc *client.FuzzClient, jobs <-chan FuzzJob, res
 			continue
 		}
 
+		if header != "" {
+			parts := strings.SplitN(header, ":", 2)
+			if len(parts) == 2 {
+				req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			}
+		}
+
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
@@ -56,7 +64,7 @@ func worker(ctx context.Context, fc *client.FuzzClient, jobs <-chan FuzzJob, res
 	}
 }
 
-func RunFuzzer(ctx context.Context, targetURL string, targetParam string, payloads []string, numWorkers int, fc *client.FuzzClient) []FuzzResult {
+func RunFuzzer(ctx context.Context, targetURL string, targetParam string, payloads []string, numWorkers int, fc *client.FuzzClient, header string) []FuzzResult {
 	numJobs := len(payloads)
 	jobs := make(chan FuzzJob, numJobs)
 	results := make(chan FuzzResult, numJobs)
@@ -65,7 +73,7 @@ func RunFuzzer(ctx context.Context, targetURL string, targetParam string, payloa
 
 	for w := 1; w <= numWorkers; w++ {
 		wg.Add(1)
-		go worker(ctx, fc, jobs, results, &wg)
+		go worker(ctx, fc, jobs, results, &wg, header)
 	}
 
 	for _, p := range payloads {

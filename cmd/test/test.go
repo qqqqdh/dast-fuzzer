@@ -41,7 +41,7 @@ func main() {
 	fmt.Printf("🚀 공격 대상: %s\n", targetServer.URL)
 	fmt.Println("공격 시작...")
 
-	results := engine.RunFuzzer(context.Background(), targetServer.URL, "id", payloads, 10, fc)
+	results := engine.RunFuzzer(context.Background(), targetServer.URL, "id", payloads, 10, fc, "")
 
 	// [새로 추가된 로직] 분석기(Analyzer)를 통한 결과 필터링
 	fmt.Println("\n🔍 응답 결과 분석 중...")

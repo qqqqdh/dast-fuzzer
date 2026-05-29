@@ -4,8 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"dast-fuzzer/internal/client"
@@ -13,6 +16,33 @@ import (
 	"dast-fuzzer/internal/payload"
 	"dast-fuzzer/internal/report"
 )
+
+func measureBaseline(ctx context.Context, targetURL string, fc *client.FuzzClient, header string) (int, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	if header != "" {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+
+	resp, err := fc.DoRequest(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(body), nil
+}
 
 func main() {
 	// 1. CLI 플래그(Flag) 정의
@@ -23,6 +53,7 @@ func main() {
 	numWorkers := flag.Int("workers", 10, "동시 실행할 워커(고루틴) 수")
 	tps := flag.Int("tps", 30, "초당 최대 요청 수 (Rate Limit)")
 	outFile := flag.String("out", "scan_report.json", "결과를 저장할 JSON 파일 경로")
+	headerFlag := flag.String("H", "", "커스텀 HTTP 헤더 (예: 'Authorization: Bearer <token>' 또는 'Cookie: session=123')")
 
 	// 2. 입력받은 플래그 파싱
 	flag.Parse()
@@ -33,6 +64,7 @@ func main() {
 		fmt.Println("사용법:")
 		flag.PrintDefaults() // 정의된 플래그들의 기본값과 설명을 자동으로 출력해 줍니다.
 		os.Exit(1)
+
 	}
 
 	fmt.Println("==================================================")
@@ -56,18 +88,24 @@ func main() {
 	fc := client.NewFuzzClient(*tps, 5*time.Second)
 	ctx := context.Background()
 
+	fmt.Println(" 타겟 서버 BASELINE(정상 응답 길이) 측정 중...")
+	baselineLength, err := measureBaseline(ctx, *targetURL, fc, *headerFlag)
+	if err != nil {
+		log.Fatalf("❌ BASELINE 측정 실패: %v", err)
+	} else {
+		fmt.Printf("✔️  BASELINE 측정 완료: %d 바이트\n", baselineLength)
+	}
+
 	startTime := time.Now()
 	fmt.Println("🚀 스캔을 시작합니다...")
-
-	// 플래그로 받은 값의 포인터(*)를 해제하여 넘겨줍니다.
-	results := engine.RunFuzzer(ctx, *targetURL, *targetParam, payloads, *numWorkers, fc)
+	results := engine.RunFuzzer(ctx, *targetURL, *targetParam, payloads, *numWorkers, fc, *headerFlag)
 
 	// 6. 결과 분석 (기준 길이는 임의로 0으로 세팅하거나 응답의 평균을 구하도록 고도화할 수 있습니다)
 	fmt.Println("🔍 응답 결과 분석 중...")
 	var vulns []engine.Vulnerability
 	for _, res := range results {
 		// 실무 환경에서는 첫 번째 요청의 길이를 baselineLength로 삼는 로직을 추가하면 좋습니다.
-		if vuln := engine.AnalyzeResult(res, 0); vuln != nil {
+		if vuln := engine.AnalyzeResult(res, baselineLength); vuln != nil {
 			vulns = append(vulns, *vuln)
 		}
 	}
